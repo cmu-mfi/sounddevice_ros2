@@ -23,6 +23,16 @@ This ROS Catkin package is a wrapper around the sounddevice python package locat
     catkin_make
     ```
 
+5. Also verify your user is in the audio group:
+
+groups
+
+If audio is missing:
+
+sudo usermod -aG audio $USER
+
+then logout/login.
+
 ## Run Instructions
 
 1. Source the devel/setup.bash and start the sound device publisher:
