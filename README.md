@@ -1,91 +1,62 @@
-# sounddevice_ros
+# sounddevice_ros2
 
-This ROS Catkin package is a wrapper around the sounddevice python package located here: https://python-sounddevice.readthedocs.io/en/0.3.13/
+ROS 2 Jazzy microphone capture using Python `sounddevice` and PortAudio.
 
-## Installation Instructions
+- **sounddevice_driver**: Publishes each captured block once as
+  `foxglove_msgs/msg/RawAudio`, with interleaved PCM-S16 audio and the first sample’s
+  ADC-adjusted timestamp. Includes an audio-device listing executable.
+- **sounddevice_bringup**: Provides `bringup.launch.py` with namespace and capture settings.
 
-1. Install sounddevice and soundfile:
-    ```bash
-    pip install sounddevice pysoundfile
-    ```
-2. Install PortAudio and ASound:
-    ```bash
-    sudo apt-get install libportaudio2 libasound-dev
-    ```
-3. Clone this repository into your catkin_ws/src folder:
-    ```bash
-    cd ~/catkin_ws/src
-    git clone https://github.com/firephinx/sounddevice_ros.git
-    ```
-4. Run catkin_make in your catkin_ws folder:
-    ```bash
-    cd ..
-    catkin_make
-    ```
+## Build
 
-5. Also verify your user is in the audio group:
+Run inside the ROS 2 Jazzy environment (the `ros2_jazzy` Distrobox for this workspace):
 
-groups
+```zsh
+source /opt/ros/jazzy/setup.zsh
+cd ~/ros2_ws
+rosdep install --from-paths src/sounddevice_ros2 --ignore-src --rosdistro jazzy -y
+colcon build --symlink-install --packages-up-to sounddevice_bringup
+source install/setup.zsh
+```
 
-If audio is missing:
+Runtime dependencies include `rclpy`, `rcl_interfaces`, `foxglove_msgs`, NumPy,
+`sounddevice` (rosdep key `python3-sounddevice-pip`), and PortAudio (rosdep key
+`portaudio19-dev`, which includes the `libportaudio2` runtime). The runtime
+must have access to the input audio device. If pip reports an externally managed
+Python environment, install `sounddevice` in a container-side virtual environment
+with `--system-site-packages` and use that environment’s Python for both the build
+and runtime.
 
-sudo usermod -aG audio $USER
+## Usage
 
-then logout/login.
+```zsh
+ros2 run sounddevice_driver sounddevice_list_devices
+ros2 launch sounddevice_bringup bringup.launch.py
+ros2 launch sounddevice_bringup bringup.launch.py ns:=microphone device:=2 channels:=1
+```
 
-## Run Instructions
+The namespaced example publishes `/microphone/audio/raw` from
+`/microphone/sounddevice_driver`. Device names can also be matched, for example
+`device:='USB Audio'`. Select a channel count and sample rate supported by your input.
 
-1. Source the devel/setup.bash and start the sound device publisher:
-    ```bash
-    source devel/setup.bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py
-    ```
-2. Open a new terminal, source the devel/setup.bash, and start the sound device subscriber:
-    ```bash
-    source ~/catkin_ws/devel/setup.bash
-    rosrun sounddevice_ros sounddevice_ros_subscriber_node.py
-    ```
+| Launch argument | Default | Description |
+| --- | --- | --- |
+| `ns` | `""` | Namespace for the node and relative topic |
+| `log_level` | `error` | `debug`, `info`, `warn`, or `error` |
+| `device` | `""` | Input device index or name substring; empty uses the system default |
+| `samplerate` | `44100` | Samples per second |
+| `blocksize` | `4096` | Samples per channel per block; must be positive |
+| `channels` | `4` | Input channel count |
+| `audio_topic` | `audio/raw` | RawAudio topic; relative names follow `ns` |
 
-## Options
+Capture settings are startup parameters. Publishing follows capture blocks rather
+than a separate publish rate; audio is always PCM-S16. Normal ROS remapping also
+works when running the node directly:
 
-### Sounddevice ROS Publisher Node
+```zsh
+ros2 run sounddevice_driver sounddevice_driver_node --ros-args \
+  -r __ns:=/microphone -r audio/raw:=audio/capture -p channels:=1
+```
 
-1. You can list available devices by first running:
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -l
-    ```
-2. You can select your desired input device by using the -d flag:
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -d <device id or substring>
-    ```
-3. You can set the sample rate by using the -r flag:
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -r <sample_rate>
-    ```
-4. You can set the number of channels by using the -c flag (default is 1):
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -c <num_channels>
-    ```
-5. You can set whether to save the audio to a wav file using the -s flag (default is False):
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -s True
-    ```
-6. If you want to save the audio to a wave file, you can set the filename (default is a random temp filename):
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -s True [Filename]
-    ```
-7. If you want to set the subtype for soundfile saving, you can use the -t flag:
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -t PCM_24
-    ```
-
-### Sounddevice ROS Subscriber Node
-
-1. You can set the filename that the audio will be saved to (default is a random temp filename):
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_subscriber_node.py [Filename]
-    ```
-2. If you did not already set the subtype for soundfile saving when starting the publisher node, you can use the -t flag:
-    ```bash
-    rosrun sounddevice_ros sounddevice_ros_publisher_node.py -t PCM_24
-    ```
+This replaces the old `sounddevice_ros` package and its custom `--namespace` option.
+Playback and the legacy message definitions are no longer included.
